@@ -11,7 +11,7 @@ pkgs <- c("rlang", "remedy", "dplyr", "Seurat", "rstudioapi", "data.table",
           "cowplot", "gplots", "ggplot2", "grid", "gridExtra",
           "styler", "stringr", "inlmisc", "RColorBrewer",
           "readxl", "devtools", "tidyverse", "hdf5r", "scales",
-          "useful", "renv", "patchwork")
+          "useful", "renv", "patchwork", "sctransform")
 
 for(i in 1:length(pkgs)){
   if(!require(pkgs[i], character.only = T)){
@@ -22,7 +22,7 @@ for(i in 1:length(pkgs)){
   }
 }
 
-pkgs <- c("SingleCellExperiment",  "DT", "readr","tibble")
+pkgs <- c("SingleCellExperiment",  "DT", "readr","tibble", "glmGamPoi")
 
 
 for(i in 1:length(pkgs)){

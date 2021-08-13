@@ -67,541 +67,492 @@ quick.load <- TRUE
 ```
 
 ### Read and format dataset
-```{r reading_data_mouse}
+```{r reading_data}
 
-# List files 
-data.list <- list.files("Data/GSE159624_RAW/", pattern = ".csv")
-
-
-############################
-# Read in sample data
-############################
-
-# Create name variable
-file.names <- gsub("_normalized.csv", "", data.list)
-file.names <- gsub("GSM([0-9]+)_", "", file.names)
-file.names
-
-
-
-
-# Read in samples
-for (i in seq_along(data.list)){
-  assign(file.names[i], read.csv(paste0("Data/GSE159624_RAW/", data.list[i])))
+if(long.compute){
+  # List files 
+  data.list <- list.files("Data/GSE159624_RAW/", pattern = ".csv")
+  
+  
+  ############################
+  # Read in sample data
+  ############################
+  
+  # Create name variable
+  file.names <- gsub("_normalized.csv", "", data.list)
+  file.names <- gsub("GSM([0-9]+)_", "", file.names)
+  file.names
+  
+  
+  
+  
+  # Read in samples
+  for (i in seq_along(data.list)){
+    assign(file.names[i], read.csv(paste0("Data/GSE159624_RAW/", data.list[i])))
+  }
+  
+  
+  
+  
+  # Annotate the cell ids so can be identified later
+  for(i in 1:8){
+    
+    AML <- eval(parse(text = paste0("AML_donor", i)))
+    Healthy <- eval(parse(text = paste0("Healthy_donor", i)))
+    
+    
+    
+    colnames(AML) <- paste0(colnames(AML), "_AML_", i)
+    colnames(Healthy) <- paste0(colnames(Healthy), "_Healthy_", i)
+    
+    colnames(AML)[1] <- "GeneID"
+    colnames(Healthy)[1] <- "GeneID"
+    
+    assign(paste0("AML_donor", i), AML)
+    assign(paste0("Healthy_donor", i), Healthy)
+    
+  }
+  
+  
+  Healthy_donor1$GeneID
+  
+  ########################################
+  # Merge data by organ of origin
+  ########################################
+  
+  # Dplyr doesnt allow merge by rowname. so have to make it a variable and then return the variable
+  
+  healthy.dataset <- 
+    full_join(Healthy_donor1, Healthy_donor2,  by = "GeneID") %>%
+    full_join(Healthy_donor3,  by = "GeneID") %>%
+    full_join(Healthy_donor4,  by = "GeneID") %>%
+    full_join(Healthy_donor5,  by = "GeneID") %>%
+    full_join(Healthy_donor6,  by = "GeneID") %>%
+    full_join(Healthy_donor7,  by = "GeneID") %>%
+    full_join(Healthy_donor8,  by = "GeneID") %>%
+    arrange(desc = TRUE) %>%
+    column_to_rownames(var = "GeneID")
+  
+  
+  
+  
+  AML.dataset <- 
+    full_join(AML_donor1, AML_donor2,  by = "GeneID") %>%
+    full_join(AML_donor3,  by = "GeneID") %>%
+    full_join(AML_donor4,  by = "GeneID") %>%
+    full_join(AML_donor5,  by = "GeneID") %>%
+    full_join(AML_donor6,  by = "GeneID") %>%
+    full_join(AML_donor7,  by = "GeneID") %>%
+    full_join(AML_donor8,  by = "GeneID") %>%
+    arrange(desc = TRUE) %>%
+    column_to_rownames(var = "GeneID")
+  
+  
+  
+  
+  
+  
+  
+  # Checking all genes were merged 
+  AML.geneIDs <- unique(c(as.character(AML_donor1$GeneID), 
+                          as.character(AML_donor2$GeneID), 
+                          as.character(AML_donor3$GeneID), 
+                          as.character(AML_donor4$GeneID), 
+                          as.character(AML_donor5$GeneID), 
+                          as.character(AML_donor6$GeneID), 
+                          as.character(AML_donor7$GeneID), 
+                          as.character(AML_donor8$GeneID)))
+  
+  length(AML.geneIDs) == nrow(AML.dataset)
+  
+  # overview stats
+  dim(healthy.dataset)
+  dim(AML.dataset)
+  
+  #####################
+  # Format dataframe
+  #####################
+  
+  
+  
+  # Merge all data together
+  Human.dataset <- merge(healthy.dataset, AML.dataset, 
+                         by = "row.names", 
+                         all = TRUE)
+  
+  # Annotate
+  rownames(Human.dataset) <- Human.dataset$Row.names
+  
+  index.val <- grep("^Row.names$", colnames(Human.dataset))
+  colnames(Human.dataset)[index.val]
+  Human.dataset <- Human.dataset[,-index.val]
+  
+  
+  
+  
+  # When a gene was detected in AML or Healthy but not the other there are now NA values for this entry in the other dataset cells
+  # Remove NA values
+  na.values <- is.na(Human.dataset)
+  sum(na.values) # 14,8438,953
+  
+  # Assigning NA values as 0
+  Human.dataset[na.values] <- 0
+  
+  # Checking NA values are removed
+  sum(is.na(Human.dataset)) 
+  
+  dim(Human.dataset) # 18,232 genes and 39,628 cells 
+  
+  # Write data to file for easy use later
+  write.csv(Human.dataset, "output/tables/Human_AML_and_Healthy.csv")
+  saveRDS(Human.dataset, "Exported_RDS_files/Human_AML_and_Healthy.rds")
+  saveRDS(AML.dataset, "Exported_RDS_files/Human_AML.rds")
+  saveRDS(healthy.dataset, "Exported_RDS_files/Human_Healthy.rds")
+  
+  # remove large datafiles
+  rm(Healthy_donor1, Healthy_donor2, Healthy_donor3, 
+     Healthy_donor4, Healthy_donor5, Healthy_donor6, 
+     Healthy_donor7, Healthy_donor8, 
+     AML_donor1, AML_donor2, AML_donor3, AML_donor4, 
+     AML_donor5, AML_donor6, AML_donor7, AML_donor8, AML, Healthy)
+  
 }
 
-##################
-# Read in metadata
-##################
-
-# Create name variable
-file.names <- gsub(".csv", "", metadata.list)
-
-# Read in metadat
-for (i in seq_along(metadata.list)){
-  assign(file.names[i], read.csv(paste0("Data/Mouse/Mouse_Meta_data/", metadata.list[i])))
-}
-
-
-# Filter sample data by cell IDs retained in metadata
-# Cells retained in metadata are after filtering reported in original paper 
-
-sample1m <- clean.data(sample1m, Mouse1Spleen_metadata)
-sample2m <- clean.data(sample2m, Mouse2Spleen_metadata)
-sample3m <- clean.data(sample3m, Mouse3Spleen_metadata)
-
-sample4m <- clean.data(sample4m, Mouse1Blood_metadata)
-sample5m <- clean.data(sample5m, Mouse2Blood_metadata)
-sample6m <- clean.data(sample6m, Mouse3Blood_metadata)
-
-
-# Annotate the cell ids so can be identified later
-colnames(sample1m) <- paste0(colnames(sample1m), "_Sp1")
-colnames(sample2m) <- paste0(colnames(sample2m), "_Sp2")
-colnames(sample3m) <- paste0(colnames(sample3m), "_Sp3")
-
-colnames(sample4m) <- paste0(colnames(sample4m), "_Bl1")
-colnames(sample5m) <- paste0(colnames(sample5m), "_Bl2")
-colnames(sample6m) <- paste0(colnames(sample6m), "_Bl3")
-
-
-########################################
-# Merge data by organ of origin
-########################################
-
-# Dplyr doesnt allow merge by rowname. so have to make it a variable and then return the variable
-
-# Spleen dataset
-sample1m$GeneID <- row.names(sample1m)
-sample2m$GeneID <- row.names(sample2m)
-sample3m$GeneID <- row.names(sample3m)
-
-spleen.raw <- 
-  full_join(sample1m, sample2m,  by = "GeneID") %>%
-  full_join(sample3m,  by = "GeneID") %>%
-  arrange(desc = TRUE) %>%
-  column_to_rownames(var = "GeneID")
-
-# Blood dataset
-sample4m$GeneID <- row.names(sample4m)
-sample5m$GeneID <- row.names(sample5m)
-sample6m$GeneID <- row.names(sample6m)
-
-blood.raw <- 
-  full_join(sample4m, sample5m,  by = "GeneID") %>%
-  full_join(sample6m,  by = "GeneID") %>%
-  arrange(desc = TRUE) %>%
-  column_to_rownames(var = "GeneID")
-
-
-# Checking all genes were merged 
-spleen.geneIDs <- unique(c(as.character(sample1m$GeneID), 
-                           as.character(sample2m$GeneID), 
-                           as.character(sample3m$GeneID)))
-
-length(spleen.geneIDs) == nrow(spleen.raw)
-
-blood.geneIDs <- unique(c(as.character(sample4m$GeneID), 
-                          as.character(sample5m$GeneID), 
-                          as.character(sample6m$GeneID)))
-
-length(blood.geneIDs) == nrow(blood.raw)
-
-# overview stats
-dim(spleen.raw)
-dim(blood.raw)
-
-#####################
-# Format dataframe
-#####################
-
-# Merge all data together
-mouse.data <- merge(spleen.raw, blood.raw, 
-                    by = "row.names", 
-                    all = TRUE)
-
-# Annotate
-rownames(mouse.data) <- mouse.data$Row.names
-
-index.val <- grep("^Row.names$", colnames(mouse.data))
-colnames(mouse.data)[index.val]
-mouse.data <- mouse.data[,-index.val]
-
-
-# Correct number of columns 
-total.geneIDs <- unique(c(spleen.geneIDs, 
-                          blood.geneIDs))
-
-length(total.geneIDs) == nrow(mouse.data)
-
-# When a gene was detected in spleen or blood but not the other there are now NA values for this entry in the other dataset cells
-# Remove NA values
-na.values <- is.na(mouse.data)
-sum(na.values) # 10,661,721
-
-# Assigning NA values as 0
-mouse.data[na.values] <- 0
-
-# Checking NA values are removed
-sum(is.na(mouse.data)) 
-
-dim(mouse.data) # 12,150 genes and 8,193 cells 
-
-# Write data to file for easy use later
-write.csv(mouse.data, "output/tables/Mouse_Sp_and_Bl_samples_raw.csv")
-saveRDS(mouse.data, "Exported_RDS_files/Mouse_Sp_and_Bl_samples_raw.RDS")
-saveRDS(spleen.raw, "Exported_RDS_files/Mouse_Sp_samples_raw.RDS")
-saveRDS(blood.raw, "Exported_RDS_files/Mouse_Bl_samples_raw.RDS")
-
-#########################
-# Merge metadata
-#########################
-
-# Annotate the cell ids so can be identified later
-
-rownames(Mouse1Spleen_metadata) <- paste0(Mouse1Spleen_metadata$X, "_Sp1")
-rownames(Mouse2Spleen_metadata) <- paste0(Mouse2Spleen_metadata$X, "_Sp2")
-rownames(Mouse3Spleen_metadata) <- paste0(Mouse3Spleen_metadata$X, "_Sp3")
-
-rownames(Mouse1Blood_metadata) <- paste0(Mouse1Blood_metadata$X, "_Bl1")
-rownames(Mouse2Blood_metadata) <- paste0(Mouse2Blood_metadata$X, "_Bl2")
-rownames(Mouse3Blood_metadata)<- paste0(Mouse3Blood_metadata$X, "_Bl3")
-
-
-# Mouse_3_spleen used a res = 0.5 whereas everythingelse, clusters were calculated on res = 0.7. 
-# remove this and other un-needed variables 
-
-colnames(Mouse1Spleen_metadata)
-
-Mouse1Spleen_metadata <- Mouse1Spleen_metadata[, -c(1, 4, 6)]
-Mouse2Spleen_metadata <- Mouse2Spleen_metadata[, -c(1, 4, 6)]
-Mouse3Spleen_metadata <- Mouse3Spleen_metadata[, -c(1, 4, 6)]
-
-Mouse1Blood_metadata <- Mouse1Blood_metadata[, -c(1, 4, 6)]
-Mouse2Blood_metadata <- Mouse2Blood_metadata[, -c(1, 4, 6)]
-Mouse3Blood_metadata <- Mouse3Blood_metadata[, -c(1, 4, 6)]
-
-
-mouse.metadata <- rbind(Mouse1Spleen_metadata, Mouse2Spleen_metadata, Mouse3Spleen_metadata, 
-                        Mouse1Blood_metadata, Mouse2Blood_metadata, Mouse3Blood_metadata)
-
-head(Mouse.metadata)
-
-
-# Write data to file for easy use later
-write.csv(mouse.metadata, "output/tables/Mouse_Sp_and_Bl_metadata.csv")
-saveRDS(mouse.metadata, "Exported_RDS_files/Mouse_Sp_and_Bl_metadata.RDS")
-
-
-# remove large datafiles
-rm(sample1m, sample2m, sample3m, 
-   sample4m, sample5m, sample6m, 
-   spleen.raw, mouse.data, blood.raw, 
-   mouse.metadata, Mouse1Spleen_metadata, Mouse2Spleen_metadata, Mouse3Spleen_metadata, 
-   Mouse1Blood_metadata, Mouse2Blood_metadata, Mouse3Blood_metadata)
 
 ```
 
-# Create seurat object
+### Create seurat object
 ```{r create_Seurat_object}
 
-mouse.data <- readRDS("Exported_RDS_files/Mouse_Sp_and_Bl_samples_raw.RDS")
-mouse.metadata <- readRDS("Exported_RDS_files/Mouse_Sp_and_Bl_metadata.RDS")
-
-dim(mouse.data)
-mouse.data[1:10, 1:10]
-
-
-# Initialize the Seurat object with the raw (non-normalized data).  
-# Keep all genes expressed in >= 3 cells. 
-# Keep all cells with at least 200 detected genes
-
-mouse.seurat <- CreateSeuratObject(counts = mouse.data,
-                                   meta.data = mouse.metadata, 
-                                   min.cells = 3, 
-                                   min.genes = 200,
-                                   is.expr = 0, # for UMI datasets this should be 0, and is default
-                                   project = "Mouse_NK",
-                                   display.progress = TRUE)
-
-
-
-# Create metadata
-donor.ID <- gsub(".*_", "", rownames(mouse.seurat@meta.data))
-organ <- gsub("[[:digit:]]", "", donor.ID)
-organ <- gsub("Sp", "Spleen", organ)
-organ <- gsub("Bl", "Blood", organ)
-unique(organ)
-
-
-mouse.seurat@meta.data$donor <- donor.ID
-mouse.seurat@meta.data$organ <- organ
-
-saveRDS(mouse.seurat, "Exported_RDS_files/Mouse_raw_Seurat_Object.RData")
-
-```
-
-
-## QC and Norm {.tabset}
-### QC
-```{r QC}
-
-################################################
-#  Get percentage Mitochondria gene expression
-################################################
-
-species.ori <- "mouse"
-
-if (species.ori == "mouse") {
-  pat <- "^mt-"
-}else if (species.ori == "human"){
-  pat <- "^MT-"
+# load data, create seurat object and calcualte mito percentage
+load_data <- function(data.dir){
+  data <- readRDS(data.dir)
+  
+  project.name <- gsub("Exported_RDS_files/", "", data.dir)
+  project.name <- gsub(".rds", "", project.name)
+  
+  s.object <- CreateSeuratObject(counts = data,
+                                 min.cells = 3, 
+                                 project = project.name,
+                                 min.genes = 200)
+  
+  s.object <- PercentageFeatureSet(s.object,
+                                   pattern = "^MT-",
+                                   col.name = "percent.mt")
+  
+  return(s.object)
 }
 
 
-mouse.seurat[["percent.mito.recalc"]] <- PercentageFeatureSet(mouse.seurat, pattern = paste0(pat))
+healthy.dataset <- load_data("Exported_RDS_files/Human_Healthy.rds")
+
+AML.dataset <- load_data("Exported_RDS_files/Human_AML.rds")
 
 
-VlnPlot(mouse.seurat, 
-        features = c("nFeature_RNA", "nCount_RNA"),
-        pt.size = 0.1)
+# Make a list of seurat objects
+seurat.list <- c(healthy.dataset, AML.dataset)
+names(seurat.list) <- c("Healthy", "AML")
 
-dev.copy(pdf, "output/QC/QC_nFeature_nCount_RNA_percentMito.pdf")
-dev.off()
+saveRDS(seurat.list, "Exported_RDS_files/Human_dataset_seurat_list.rds")
 
-
-VlnPlot(mouse.seurat, 
-        features = c("percent.mito", "percent.mito.recalc"), 
-        pt.size = 0.1)
-
-
-dev.copy(pdf, "output/QC/QC_percentMito.pdf")
-dev.off()
-
-
-#  Filter cells
-# Remove cells with < 200 genes, and remove cells with > 10% mitochondrial genes
-mouse.seurat.filt <- subset(mouse.seurat, 
-                            subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & percent.mito.recalc < 10)
-
-
-# Vis after filtering
-
-p1 <- VlnPlot(mouse.seurat, 
-              features = "percent.mito.recalc", 
-              pt.size = 0.1, 
-              y.max = 20) + NoLegend() + 
-  ggtitle("Before filtering")
-
-p2 <- VlnPlot(mouse.seurat.filt, 
-              features = "percent.mito.recalc", 
-              pt.size = 0.1, 
-              y.max = 20) + NoLegend() + 
-  ggtitle("After filtering")
-
-p1 | p2
-
-dev.copy(pdf, "output/QC/QC_percentMito_filtering.pdf")
-dev.off()
-
-
-p1 <- VlnPlot(mouse.seurat, 
-              features = "nFeature_RNA", 
-              pt.size = 0.1, 
-              y.max = 2500) + NoLegend() + 
-  ggtitle("Before filtering")
-
-p2 <- VlnPlot(mouse.seurat.filt, 
-              features = "nFeature_RNA", 
-              pt.size = 0.1, 
-              y.max = 2500) + NoLegend() + 
-  ggtitle("After filtering")
-
-p1 | p2
-
-dev.copy(pdf, "output/QC/QC_nFeature_RNA_filtering.pdf")
-dev.off()
-
-
-# Stats
-mouse.seurat # 12,121 genes across 8,193 cells
-mouse.seurat.filt # 12,121 genes across 8,180 cells
-
-# Therefore
-8193 - 8180
-# 13 cells were deleted
-
-
-####################################
-# Annotating data by organ origin
-####################################
-
-#  Add organ label to metadata
-organ <- rownames(mouse.seurat.filt@meta.data)
-organ <- gsub(".*_","", organ)
-organ <- gsub("Sp","Spleen", organ)
-organ <- gsub("Bl","Blood", organ)
-organ <- gsub("[[:digit:]]","", organ)
-mouse.seurat.filt@meta.data$organ <- organ
-
-
-# QC plots subset by organ assignment
-VlnPlot(mouse.seurat.filt, 
-        features = c("nFeature_RNA"), 
-        group.by = "organ",
-        pt.size = 0.1)
-
-dev.copy(pdf, "output/QC/QC_nFeature_postfiltering_byorgan.pdf")
-dev.off()
-
-
-# QC plots subset by organ assignment
-VlnPlot(mouse.seurat.filt, 
-        features = c("nCount_RNA"), 
-        group.by = "organ",
-        pt.size = 0.1)
-
-dev.copy(pdf, "output/QC/QC_nCount_postfiltering_byorgan.pdf")
-dev.off()
-
-
-# QC plots subset by organ assignment
-VlnPlot(mouse.seurat.filt, 
-        features = c("percent.mito.recalc"), 
-        group.by = "organ",
-        pt.size = 0.1)
-
-dev.copy(pdf, "output/QC/QC_percentMito_postfiltering_byorgan.pdf")
-dev.off()
-
-
-
-```
-
-
-### Filtering dataset and subsetting dataset 
-```{r filtering_and_subsetting_dataset}
-
-##################
-# Filter dataset 
-##################
-
-# Remove cells with no crinier cluster annotation
-keep.logic <- mouse.seurat.filt@meta.data$cluster != "none"
-cells.keep <- rownames(mouse.seurat.filt@meta.data)[keep.logic]
-
-mouse.seurat.filt <- subset(mouse.seurat.filt, cells = cells.keep)
-
-
-
-# Split dataset by organ
-Idents(mouse.seurat.filt) <- mouse.seurat.filt@meta.data$organ
-
-
-spleen.seurat.filt <- subset(mouse.seurat.filt, idents = "Spleen")
-blood.seurat.filt <- subset(mouse.seurat.filt, idents = "Blood")
-
+# remove single seurat objects
+rm(healthy.dataset, AML.dataset)
 
 ```
 
 
 
-### Normalise datasets 
-```{r normalise_datasets}
+## QC and Filter {.tabset}
 
-################################################
-# Normalise, scale & find variable genes 
-################################################
+### QC & filter
 
+```{r QC_and_filter}
 
-datasets.list <- list(mouse.seurat.filt, spleen.seurat.filt,  blood.seurat.filt)
-names(datasets.list)  <- c("Complete", "Spleen", "Blood")
+if(long.compute){
+  
+  for(i in seq_along(seurat.list)){
+    
+    # Create output dir
+    output.path <- paste0("output/QC/QC_", names(seurat.list)[i])
+    
+    
+    if(!dir.exists(output.path)){
+      dir.create(output.path, 
+                 recursive = TRUE)}
+    
+    
+    # Plot QC metrics 
+    
+    # nFeature & nCount & Mito
+    print(
+      VlnPlot(seurat.list[[i]], 
+              features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), 
+              pt.size = 0.1)
+    )
+    
+    dev.copy(pdf,  paste0(output.path, "/QC_nFeature_nCount_RNA_percentMito.pdf"))
+    dev.off()
+    
+    # Mito
+    print(
+      VlnPlot(seurat.list[[i]], 
+              features = "percent.mt", 
+              y.max = 20,
+              pt.size = 0.1)
+    )
+    
+    dev.copy(pdf,  paste0(output.path, "/QC_RNA_percentMito.pdf"))
+    dev.off()
+    
+  }
+  
+  
+  min.nFeature <- 400
+  max.nFeature <- 3000
+  max.nCount <- 3000
+  max.Percent.Mt <- 5
+  
+  seurat.list <- lapply(seurat.list, 
+                        FUN = subset,
+                        subset = nFeature_RNA > min.nFeature & nFeature_RNA < max.nFeature & nCount_RNA < max.nCount & percent.mt < max.Percent.Mt)
+  
+  
+  
+  
+  for(i in seq_along(seurat.list)){
+    
+    # output.dir
+    output.path <- paste0("output/QC/QC_", names(seurat.list)[i])
+    
+    # After filtering
+    print(
+      VlnPlot(seurat.list[[i]],
+              features = c("nFeature_RNA", "nCount_RNA", "percent.mt"),
+              pt.size = 0.1)
+    )
+    
+    dev.copy(pdf,  paste0(output.path, "/QC_nFeature_nCount_RNA_percentMito_Postfiltering.pdf"))
+    dev.off()
+    
+  }
+  
 
-for(i in seq_along(datasets.list)){
-  
-  # Normalise RNA data by logNormalize
-  datasets.list[[i]] <- NormalizeData(datasets.list[[i]],
-                                      normalization.method = "LogNormalize",
-                                      scale.factor = 10000,
-                                      verbose = TRUE)
+  # Post-filtering metrics
+  seurat.list
   
   
-  # Find variable genes
-  datasets.list[[i]] <- FindVariableFeatures(datasets.list[[i]],
-                                             nfeatures = 1000,
-                                             verbose = TRUE)
-  
-  # Scale data
-  datasets.list[[i]] <- ScaleData(datasets.list[[i]],
-                                  vars.to.regress = c("nCount_RNA", "percent.mito.recalc"),
-                                  model.use = "linear",
-                                  do.scale = TRUE,
-                                  do.center = TRUE,
-                                  verbose = TRUE)
+  # Save filtered dataset
+  saveRDS(seurat.list, "Exported_RDS_files/Human_dataset_seurat_list.rds")
   
   
 }
 
+```
 
-# Remove unneeded variables
-rm(mouse.seurat)
+
+## SCT normalise data
+
+```{r SCT_normalisation}
+
+if(long.compute){
+# Normalise and scale with SCTransform 
+seurat.list <- lapply(X = seurat.list, 
+                      FUN = SCTransform, 
+                      method = "glmGamPoi", 
+                      vars.to.regress = "percent.mt", 
+                      verbose = TRUE) 
+  
+
+ # Save normalised dataset
+  saveRDS(seurat.list, "Exported_RDS_files/Human_dataset_seurat_list.rds")
+  
+}
 
 ```
+
+
+
+## Combine patients {.tabset}
+
+### Integrate data
+
+```{r Integrate_patients}
+
+if(long.compute){
+  
+  
+  # Integrate datasets
+  
+  # Select features
+  integration.features <- SelectIntegrationFeatures(object.list = seurat.list, 
+                                                    nfeatures = 4000)
+  
+  # Prep dataset
+  integrated.seurat <- PrepSCTIntegration(object.list = seurat.list, 
+                                          anchor.features = integration.features)
+  
+  # perform PCA analysis
+  integrated.seurat <- lapply(X = seurat.list, 
+                              FUN = Seurat::RunPCA,
+                              features = integration.features)
+  
+  
+  # Find integration anchors
+  integration.anchors <- FindIntegrationAnchors(object.list = integrated.seurat, 
+                                                anchor.features = integration.features,
+                                                normalization.method = 'SCT',
+                                                reduction = "rpca", # rpca is more conservative, best for datasets which may not overlap alot
+                                                k.anchor = 20) # increases strength of alignment
+  
+  # Integrate dataset
+  integrated.seurat <- IntegrateData(anchorset = integration.anchors, 
+                                     normalization.method = 'SCT')
+  
+  
+  # Basic overview of data
+  integrated.seurat # 30,04 genes and 5,060 cells 
+  
+  seurat.list[[1]] # 24,231 cells
+  seurat.list[[2]] # 15,293 cells
+  
+  # Save files 
+  saveRDS(integrated.seurat, file = "Exported_RDS_files/integrated_seurat.rds")
+  
+  # Remove unneeded data
+  rm(integration.anchors, integration.features, features)
+  
+}
+
+
+```
+
 
 
 
 ## Unbiased Clustering {.tabset}
 
 ### Clustering
-```{r Initial_clustering}
+```{r PCA_and_cluster_identification}
+
+################################
+# PCA and cluster identification
+################################
+
 
 # Set seed for reproducibility
 set.seed(42)
+
+
+# Calculate PCA
+seurat.list <- lapply(seurat.list, 
+                      FUN = Seurat::RunPCA,
+                      npcs = 20, 
+                      verbose = TRUE, 
+                      rev.pca = TRUE,
+                      seed.use = 42)
+
+# Find neighbours
+seurat.list <- lapply(seurat.list, 
+                      FUN = Seurat::FindNeighbors,
+                      dims = 1:20)
+
+# Find clusters
+seurat.list <- lapply(seurat.list, 
+                      FUN = Seurat::FindClusters,
+                      resolution = 0.1)
+
+
+
+# Plot PCA
+for(i in seq_along(seurat.list)){
+  
+  # Create output dir
+  output.path <- paste0("output/figures/PCA_", names(seurat.list)[i])
+  
+  if(!dir.exists(output.path)){
+    dir.create(output.path, 
+               recursive = TRUE)}
+  
+  
+  print(
+    PCAPlot(seurat.list[[i]], 
+            dims = c(1, 2),
+            pt.size = 2, 
+            group.by = "orig.ident")
+  )
+  
+  dev.copy(pdf,  paste0(output.path, "/PCA_dim1_vs_2.pdf"))
+  dev.off()
+  
+  
+  print(
+    PCAPlot(seurat.list[[i]], 
+            dims = c(2, 3),
+            pt.size = 2, 
+            group.by = "orig.ident")
+  )
+  
+  dev.copy(pdf,  paste0(output.path, "/PCA_dim2_vs_3.pdf"))
+  dev.off()
+  
+  
+  
+}
+
 
 
 #################################################################
 # Determine statistically significant principal components
 #################################################################
 
-# Use quick approximation of significant PCs
-#ElbowPlot(mouse.seurat.filt, ndims = 30)
-#dev.copy(pdf, "output/QC/PC_elbowplot.pdf")
-#dev.off()
+for(i in seq_along(seurat.list)){
+  
+  # get output.dir
+  output.path <- paste0("output/figures/PCA_", names(seurat.list)[i])
+  
+  print(
+    ElbowPlot(seurat.list[[i]],
+              ndims = 20)
+  )
+  
+  dev.copy(pdf,  paste0(output.path, "/PC_elbowplot.pdf"))
+  dev.off()
+}
 
 
-
-# NOTE: This process can take a long time for big datasets, comment out for
-# expediency.  More approximate techniques such as those implemented in
-# PCElbowPlot() can be used to reduce computation time
+# Not applicable for SCT-transformed 
 
 if(long.compute){
   
-  mouse.seurat.filt <- JackStraw(mouse.seurat.filt,
-                                 dims = 50)
-  mouse.seurat.filt <- ScoreJackStraw(mouse.seurat.filt,
-                                      dims = 1:50)
+  # NOTE: This process can take a long time for big datasets, comment out for
+# expediency.  More approximate techniques such as those implemented in
+# PCElbowPlot() can be used to reduce computation time
   
-  JackStrawPlot(mouse.seurat.filt, dims = 1:30)
   
-  dev.copy(pdf, "output/QC/JackStrawPlot.pdf")
+    seurat.list <- lapply(seurat.list, 
+           FUN = Seurat::JackStraw,
+           reduction = "pca", 
+           dims = 50)
+    
+    seurat.list <- lapply(seurat.list, 
+           FUN = Seurat::ScoreJackStraw,
+           dims = 1:50)
+    
+    
+      for(i in seq_along(seurat.list)){
+
+      # get output.dir
+  output.path <- paste0("output/figures/PCA_", names(seurat.list)[i])
+  
+  print(
+    JackStrawPlot(seurat.list[[i]],
+                  dims = 1:30)
+  )
+  
+   dev.copy(pdf,  paste0(output.path, "/JackStrawPlot.pdf"))
   dev.off()
   
-}
-
-# PC 21 = last sig dim
-# therefore use 20 dims
-
-
-###################################
-# PCA and cluster identification
-###################################
-
-
-for(i in seq_along(datasets.list)){
-  
-  # Create output dir
-  output.path <- paste0("output/figures/PCA_", names(datasets.list)[i])
-  
-  
-  if(!dir.exists(output.path)){
-    dir.create(output.path, 
-               recursive = TRUE)}
-  
-  # Run PCA
-  datasets.list[[i]] <- RunPCA(datasets.list[[i]], 
-                               features = datasets.list[[i]]@assays$RNA@var.features,
-                               npcs = 20,
-                               verbose = TRUE, 
-                               rev.pca = TRUE,
-                               seed.use = 42)
-  
-  # Plot PCA projection
-  print(PCAPlot(datasets.list[[i]], 
-          dims = c(1, 2),
-          pt.size = 2,
-          group.by = "organ"))
-  
-  dev.copy(pdf, paste0(output.path, "/PCA_by_organ_Dim1_2.pdf"))
-  dev.off()
-  
-  print(PCAPlot(datasets.list[[i]], 
-          dims = c(2, 3),
-          pt.size = 2,
-          group.by = "organ"))
-  
-  dev.copy(pdf, paste0(output.path, "/PCA_by_organ_Dim2_3.pdf"))
-  dev.off()
-  
-  
-  
-  # Find neighbours
-  datasets.list[[i]] <- FindNeighbors(datasets.list[[i]],
-                                      dims = 1:20)
-  
-  # Find clusters
-  datasets.list[[i]] <- FindClusters(datasets.list[[i]],
-                                     resolution = 0.1)
-  
+  }
 }
 
 
@@ -611,143 +562,91 @@ for(i in seq_along(datasets.list)){
 ### UMAP and tSNE dim Reduction
 ```{r Dim_reduction}
 
+# Calculate tSNE
+seurat.list <- lapply(seurat.list, 
+                      FUN = Seurat::RunTSNE,
+                      reduction = "pca",
+                      dims = 1:20,
+                      perplexity = 30,
+                      method = "FIt-SNE",
+                      seed.use = 42,
+                      dim.embed = 2)
 
-
-for(i in seq_along(datasets.list)){
-  
-  # Set assay 
-  DefaultAssay(datasets.list[[i]]) <- "RNA"
-  
-  # Set Idents
-  Idents(datasets.list[[i]]) <- datasets.list[[i]]@meta.data$organ
-  
-  
-  
-  
-  ##########
-  # TSNE
-  ##########
+# Plot tSNE
+for(i in seq_along(seurat.list)){
   
   # Create output dir
-  output.path <- paste0("output/figures/tSNE_", names(datasets.list)[i])
-  
+  output.path <- paste0("output/figures/tSNE_", names(seurat.list)[i])
   
   if(!dir.exists(output.path)){
     dir.create(output.path, 
                recursive = TRUE)}
   
   
+  print(
+    TSNEPlot(seurat.list[[i]], 
+             group.by = "orig.ident")
+  )
   
-  
-  datasets.list[[i]] <- RunTSNE(datasets.list[[i]],
-                                reduction = "pca",
-                                dims = 1:20,
-                                perplexity = 30,
-                                method = "FIt-SNE",
-                                seed.use = 42,
-                                dim.embed = 2)
-  
-  print(TSNEPlot(datasets.list[[i]],
-           label = TRUE, 
-           group.by = "organ"))
-  
-  dev.copy(pdf,  paste0(output.path, "/tSNE_by_organ.pdf"))
+  dev.copy(pdf,  paste0(output.path, "/tSNE_orig_ident.pdf"))
   dev.off()
   
   
+  print(
+    TSNEPlot(seurat.list[[i]], 
+             group.by = "seurat_clusters")
+  )
   
-  print(TSNEPlot(datasets.list[[i]],
-           label = TRUE, 
-           group.by = "seurat_clusters"))
-  
-  dev.copy(pdf, paste0(output.path, "/tSNE_by_seurat_clusters.pdf"))
+  dev.copy(pdf,  paste0(output.path, "/tSNE_seurat_clusters.pdf"))
   dev.off()
   
   
-  # using original author clusters
-  print(TSNEPlot(datasets.list[[i]],
-           label = TRUE, 
-           group.by = "cluster"))
-  
-  dev.copy(pdf, paste0(output.path, "/tSNE_by_crinier_clusters.pdf"))
-  dev.off()
-  
-    print(TSNEPlot(datasets.list[[i]],
-           label = TRUE, 
-           group.by = "donor"))
-  
-  dev.copy(pdf, paste0(output.path, "/tSNE_by_donor.pdf"))
-  dev.off()
-  
-  ##########
-  # UMAP
-  ##########
+}
+
+
+ # Calculate UMAP
+seurat.list <- lapply(seurat.list, 
+                      FUN = Seurat::RunUMAP,
+                      reduction = "pca",
+                      dims = 1:20,
+                      umap.method = "uwot", 
+                      n.neighbors = 45, # 5 to 50 // 45
+                      min.dist = 0.5, # Sensible values are in the range 0.001 to 0.5 // 0.5
+                      seed.use = 42)
+
+# Plot UMAP
+for(i in seq_along(seurat.list)){
   
   # Create output dir
-  output.path <- paste0("output/figures/UMAP_", names(datasets.list)[i])
-  
+  output.path <- paste0("output/figures/UMAP_", names(seurat.list)[i])
   
   if(!dir.exists(output.path)){
     dir.create(output.path, 
                recursive = TRUE)}
   
   
-  datasets.list[[i]] <- RunUMAP(datasets.list[[i]],
-                                reduction = "pca",
-                                dims = 1:20,
-                                umap.method = "uwot", 
-                                n.neighbors = 45, # 5 to 50 // 45
-                                min.dist = 0.5, # Sensible values are in the range 0.001 to 0.5 // 0.5
-                                seed.use = 42)
+  print(
+    UMAPPlot(seurat.list[[i]], 
+             group.by = "orig.ident")
+  )
   
-  # Larger values = global structure
-  # small value = local structure
-  
-  print(UMAPPlot(datasets.list[[i]],
-           label = T,
-           group.by = "organ"))
-  
-  dev.copy(pdf, paste0(output.path, "/UMAP_by_organ.pdf"))
+  dev.copy(pdf,  paste0(output.path, "/UMAP_orig_ident.pdf"))
   dev.off()
   
-  print(UMAPPlot(datasets.list[[i]],
-           label = TRUE, 
-           group.by = "seurat_clusters"))
   
-  dev.copy(pdf, paste0(output.path, "/UMAP_by_seurat_clusters.pdf"))
+  print(
+    UMAPPlot(seurat.list[[i]], 
+             group.by = "seurat_clusters")
+  )
+  
+  dev.copy(pdf,  paste0(output.path, "/UMAP_seurat_clusters.pdf"))
   dev.off()
   
-  # Original Author clusters
-  print(UMAPPlot(datasets.list[[i]],
-           label = TRUE, 
-           group.by = "cluster"))
-  
-  dev.copy(pdf, paste0(output.path, "/UMAP_by_crinier_clusters.pdf"))
-  dev.off()
-  
-  print(UMAPPlot(datasets.list[[i]],
-           label = TRUE, 
-           group.by = "donor"))
-  
-  dev.copy(pdf, paste0(output.path, "/UMAP_by_donor.pdf"))
-  dev.off()
   
 }
 
-
-```
-
-
-### Export seurat objects
-```{r export_seurat_RDS}
-
-for(i in seq_along(datasets.list)){
-
-saveRDS(datasets.list[[i]], file = paste0("Exported_RDS_files/Mouse_", names(datasets.list)[i], "_seurat_filt.rds"))
-
-  
-}
-
+# Save dataset with dim reduction
+saveRDS(seurat.list, "Exported_RDS_files/Human_dataset_seurat_list.rds")
 
 ```
 
@@ -759,23 +658,479 @@ saveRDS(datasets.list[[i]], file = paste0("Exported_RDS_files/Mouse_", names(dat
 ```{r seurat_imputation}
 
 
-for(i in seq_along(datasets.list)){
-
-# Impute gene expression 
-datasets.list[[i]] <- RunALRA(datasets.list[[i]], 
-                             genes.use = rownames(datasets.list[[i]]))
-
-#The matrix went from 7.41% nonzero to 61.04% nonzero
-
-# set assay 
-DefaultAssay(datasets.list[[i]]) <- "RNA"
-
-saveRDS(datasets.list[[i]], file = paste0("Exported_RDS_files/Mouse_", names(datasets.list)[i], "_seurat_filt_imputed.rds"))
-
-
+if(long.compute){
+  
+  seurat.list <- lapply(seurat.list, 
+                        FUN = function(x){
+                          SeuratWrappers::RunALRA(x, genes.use = rownames(x))
+                        }
+  )
+  
+  # Save dataset with dim reduction
+  saveRDS(seurat.list, "Exported_RDS_files/Human_dataset_seurat_list_imputed.rds")
+  
 }
 
 
 ```
 
 
+
+## Differential gene expression {.tabset}
+
+### DEG calculation
+```{r DEG_calculation}
+
+if(long.compute){
+  for(i in seq_along(seurat.list)){
+    DefaultAssay(seurat.list[[i]]) <- "SCT"
+  }
+
+  #BiocManager::install('limma')
+  library("limma")
+  
+  
+  markers.vec <- lapply(seurat.list, 
+                        FUN = Seurat::FindAllMarkers,
+                        only.pos = FALSE)
+  
+  
+  
+  # Save dataset with dim reduction
+  saveRDS(markers.vec, "Exported_RDS_files/DEG_markers.rds")
+  
+  
+  
+  # just cluster 4 specific markers
+  cluster.4.markers <- FindMarkers(seurat.list$Healthy, 
+                                   ident.1 = 4)
+  
+  # Save dataset with dim reduction
+  saveRDS(cluster.4.markers, "Exported_RDS_files/DEG_markers_cluster_4.rds")
+  
+}
+
+```
+ 
+ 
+
+### DEG visualisation 
+```{r DEG_vis}
+
+
+  for(i in seq_along(seurat.list)){
+    DefaultAssay(seurat.list[[i]]) <- "alra"
+    
+    Idents(seurat.list[[i]]) <- "seurat_clusters"
+  }
+
+
+
+
+top.genes <- markers.vec$Healthy %>%
+  dplyr::filter(p_val_adj < 0.05) %>%
+  group_by(cluster) %>%
+  top_n(30, avg_log2FC) %>%
+  pull(gene)
+
+top.genes <- markers.vec$Healthy %>%
+  dplyr::filter(p_val_adj < 0.05) %>%
+  dplyr::filter(cluster == 4) %>%
+  top_n(50, avg_log2FC) %>%
+  pull(gene)
+
+
+small.object <- subset(seurat.list$Healthy, downsample = 300)
+
+small.object <- ScaleData(small.object)
+
+
+
+DoHeatmap(small.object,
+          assay = "alra",
+          features = top.genes, 
+          draw.lines = FALSE)
+
+
+up.genes <- cluster.4.markers %>%
+  dplyr::filter(p_val_adj < 0.05)  %>%
+  top_n(20, avg_log2FC)
+
+dn.genes <- cluster.4.markers %>%
+  dplyr::filter(p_val_adj < 0.05)  %>%
+  top_n(-20, avg_log2FC)
+
+
+
+top.genes <- c(rownames(up.genes), rownames(dn.genes), "NCAM1")
+
+
+
+
+
+DoHeatmap(small.object,
+          assay = "alra",
+          features = top.genes, 
+          draw.lines = FALSE)
+
+
+##
+
+
+#
+
+
+
+
+
+
+
+
+DoHeatmap(small.object,
+          assay = "alra",
+          features = top.genes, 
+          draw.lines = FALSE)
+
+
+
+
+
+
+Nebulosa::plot_density(seurat.list$Healthy, 
+                       "EOMES")
+
+
+
+
+
+
+
+
+
+FeaturePlot(seurat.list$Healthy, 
+            c("NCAM1", "FCGR3A"), 
+            pt.size = 0.5,
+            cols = c("gray", "red", "blue"),
+            order = TRUE,
+            blend = TRUE)
+
+
+
+UMAPPlot(seurat.list$Healthy, label = T)
+
+
+
+
+FeaturePlot(seurat.list$Healthy, 
+            "BATF3", 
+            pt.size = 0.4,
+            order = TRUE)
+
+
+
+
+
+
+
+
+
+for(i in seq_along())
+
+FeaturePlot(seurat.list$Healthy, 
+            "IL7R", 
+            pt.size = 0.5,
+            order = TRUE)
+
+
+
+FeaturePlot
+
+
+
+
+
+
+
+
+Idents(seurat.list$Healthy) <- "seurat_clusters"
+
+small.object <- subset(seurat.list$Healthy, downsample = 300)
+
+
+
+small.object <- ScaleData(small.object)
+
+
+goi <- c("LTB", "IL7R", "KIT", "BATF3", "DLL1", "ID3", "INPP4B", "DPP4", "IL2RA", "ITGA1", "EOMES", "SELL", "KLRG1", "TNFSF10", "NKG7", "TNF", "GZMA", "GZMB", "PRF1", "CD7", "CD9")
+
+
+DoHeatmap(small.object,
+          assay = "alra",
+          features = goi, 
+          draw.lines = FALSE)
+
+
+
+
+
+
+
+
+
+DefaultAssay(human.seurat.filt) <- "alra"
+
+
+output.dir <- "output/figures/Key_marker_genes"
+
+
+  if(!dir.exists(paste0(output.dir))){
+    dir.create(paste0(output.dir), 
+               recursive = TRUE)}
+
+
+
+for(i in seq_along(goi)){
+  if(goi[i] %in% rownames(human.seurat.filt@assays$alra@data)){
+    
+    print(FeaturePlot(human.seurat.filt, 
+                      feature = goi[i]))
+    
+    dev.copy(pdf, paste0(output.dir, "/FeaturePlot_", goi[i], "_imputed.pdf"))
+    dev.off()
+    
+    print(VlnPlot(human.seurat.filt, 
+                  feature = goi[i],
+                  assay = "alra",
+                  pt.size = 0.1))
+    
+    dev.copy(pdf, paste0(output.dir, "/VlnPlot_", goi[i], "_imputed.pdf"))
+    dev.off()
+  }
+}
+
+
+
+
+
+
+
+
+
+
+VlnPlot(human.seurat.filt, 
+                  feature = "Up_sig1",
+                  pt.size = 0.1)
+
+
+
+
+
+average.object <- AverageExpression(human.seurat.filt, return.seurat = TRUE)
+
+
+DefaultAssay(average.object) <- "alra"
+
+average.object <- ScaleData(average.object)
+
+
+DoHeatmap(average.object,
+          assay = "alra",
+          features = goi, 
+          draw.lines = FALSE)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+goi <- c("CD7", "SELL", "CD160", "ITGAM", "CXCR6", "ITGA1", "ITGA2", "CD226", "EOMES", "IL7R", LTB)
+goi <- Up.genes
+
+
+
+FeaturePlot(human.seurat.filt, 
+            feature = "LTB")
+
+
+human.seurat.filt@meta.data$Up_sig1
+
+
+rownames(human.seurat.filt@assays$RNA@data)[grepl("CD2", rownames(human.seurat.filt@assays$RNA@data))]
+
+
+goi <- c("LTB", "KIT", "CD160", "IL7R", "NKG7", "GZMA", "IFNG", "IFNGR1", "IFNGR2", "EOMES")
+
+sort(rowSums(human.seurat.filt@assays$RNA@data), decreasing = T)[20:30]
+
+
+rownames(human.seurat.filt@assays$RNA@data)
+
+
+FeaturePlot(human.seurat.filt,
+              "ZNF683", 
+              pt.size = 0.5,
+              order = TRUE)
+
+
+
+Up.genes
+
+VlnPlot(human.seurat.filt,
+              "Dn_sig1", pt.size = 0.1)
+
+
+
+
+
+
+# Read in CD160 signature
+CD160.sig <- read.csv("Data/QLF_S.PosvsNeg.csv")
+
+Up.genes <- 
+  CD160.sig %>%
+  dplyr::filter(FDR < 0.05) %>%
+  dplyr::top_n(100, logFC) %>%
+  dplyr::arrange(desc(logFC)) %>%
+  dplyr::pull(genes)
+
+Up.genes <- toupper(Up.genes)
+
+
+
+Dn.genes <- 
+  CD160.sig %>%
+  dplyr::filter(FDR < 0.05) %>%
+  dplyr::top_n(-100, logFC) %>%
+  dplyr::arrange(logFC) %>%
+  dplyr::pull(genes)
+
+Dn.genes <- toupper(Dn.genes)
+
+
+
+
+##########################
+# Do signature scoring
+##########################
+
+# Set default assay to RNA
+DefaultAssay(human.seurat.filt) <- "RNA"
+
+
+human.seurat.filt <- AddModuleScore(human.seurat.filt, 
+                                    features = list(Up.genes), 
+                                    name = "Up_sig",
+                                    ctrl = 80,
+                                    seed = 42)
+
+human.seurat.filt <- AddModuleScore(human.seurat.filt, 
+                                    features = list(Dn.genes), 
+                                    name = "Dn_sig",
+                                    ctrl = 80,
+                                    seed = 42)
+
+
+#########################################
+# Visualise signature and sig genes
+#########################################
+
+DefaultAssay(mouse.seurat.filt) <- "alra"
+
+
+
+for(i in seq_along(Up.genes)){
+  
+  
+  if(Up.genes[i] %in% rownames(mouse.seurat.filt@assays$alra@data)){
+  print(VlnPlot(mouse.seurat.filt,
+        assay = "alra",
+        features = paste0(Up.genes[i]),
+        pt.size = 0.1,
+        group.by = "seurat_clusters"))
+
+  
+  dev.copy(pdf, paste0(output.dir, "/VlnPlots/VlnPlot_", Up.genes[i], "_imputed.pdf"))
+  dev.off()
+  
+  
+  
+  print(Nebulosa::plot_density(mouse.seurat.filt,
+                         paste0(Up.genes[i])))
+  
+dev.copy(pdf, paste0(output.dir, "/Density_UMAP/Nebulosa_", Up.genes[i], "_imputed.pdf"))
+  dev.off()
+  
+  
+  print(FeaturePlot(mouse.seurat.filt,
+              paste0(Up.genes[i]), 
+              pt.size = 0.5,
+              order = TRUE))
+  
+dev.copy(pdf, paste0(output.dir, "/UMAP/FeaturePlot_", Up.genes[i], "_imputed.pdf"))
+  dev.off()
+  
+  
+  }
+  
+}
+
+
+
+
+VlnPlot(mouse.seurat.filt, 
+        "Up_sig1", 
+        group.by = "seurat_clusters",
+        pt.size = 0.1)
+
+dev.copy(pdf, paste0(output.dir, "/Cd160_signature_upregulated_genes_imputed.pdf"))
+dev.off()
+
+
+VlnPlot(mouse.seurat.filt,
+        "Dn_sig1",
+        group.by = "seurat_clusters", 
+        pt.size = 0.1)
+
+dev.copy(pdf, paste0(output.dir, "/Cd160_signature_downregulated_genes_imputed.pdf"))
+dev.off()
+
+
+
+
+
+
+ILC1.signature <- c("Cd160", "Xcl1", "Crtam", "Batf3", "Id3", "Ltb", "Tnfsf10")
+NK.signature <- c("Itgam", "Eomes", "Gzmb")
+
+
+
+
+
+
+
+
+
+# Scatter plot across individual features, repleaces CellPlot
+
+DimHeatmap(object = seurat.list$Healthy, reduction = "pca", cells = 100)
+
+
+plot <- DimPlot(object = seurat.list$Healthy) + NoLegend()
+
+# HoverLocator replaces the former `do.hover` argument It can also show extra data throught the `information` argument,
+# designed to work smoothly with FetchData
+HoverLocator(plot = plot, information = FetchData(object = seurat.list$Healthy, vars = c("ident", "PC_1", "nFeature_RNA")))
+
+# FeatureLocator replaces the former `do.identify`
+select.cells <- CellSelector(plot = plot)
+
+
+```

@@ -64,6 +64,15 @@ source("R/Setup.R", local = knitr::knit_global())
 long.compute <- FALSE
 quick.load <- TRUE
 
+
+if(quick.load){
+  
+  cluster.4.markers <- readRDS("Exported_RDS_files/DEG_markers_cluster_4.rds")
+  markers.vec <- readRDS("Exported_RDS_files/DEG_markers.rds")
+  seurat.list <- readRDS("Exported_RDS_files/Human_dataset_seurat_list_imputed.rds")
+  
+  
+}
 ```
 
 ### Read and format dataset
@@ -224,6 +233,7 @@ if(long.compute){
 ### Create seurat object
 ```{r create_Seurat_object}
 
+if(long.compute){
 # load data, create seurat object and calcualte mito percentage
 load_data <- function(data.dir){
   data <- readRDS(data.dir)
@@ -258,6 +268,7 @@ saveRDS(seurat.list, "Exported_RDS_files/Human_dataset_seurat_list.rds")
 # remove single seurat objects
 rm(healthy.dataset, AML.dataset)
 
+}
 ```
 
 
@@ -434,6 +445,8 @@ if(long.compute){
 ### Clustering
 ```{r PCA_and_cluster_identification}
 
+if(long.compute){
+
 ################################
 # PCA and cluster identification
 ################################
@@ -520,6 +533,13 @@ for(i in seq_along(seurat.list)){
 }
 
 
+}
+
+
+
+
+
+
 # Not applicable for SCT-transformed 
 
 if(long.compute){
@@ -561,6 +581,8 @@ if(long.compute){
 
 ### UMAP and tSNE dim Reduction
 ```{r Dim_reduction}
+
+if(long.compute){
 
 # Calculate tSNE
 seurat.list <- lapply(seurat.list, 
@@ -648,6 +670,8 @@ for(i in seq_along(seurat.list)){
 # Save dataset with dim reduction
 saveRDS(seurat.list, "Exported_RDS_files/Human_dataset_seurat_list.rds")
 
+
+}
 ```
 
 
@@ -675,6 +699,29 @@ if(long.compute){
 ```
 
 
+### Rename clusters
+```{r Rename_clusters}
+
+Idents(seurat.list$Healthy) <- "seurat_clusters"
+
+seurat.list$Healthy <- RenameIdents(seurat.list$Healthy,
+                                    "0" = "NK", 
+                                    "1" = "NK", 
+                                    "2" = "NK", 
+                                    "3" = "NK", 
+                                    "4" = "ILC1-like", 
+                                    "5" = "NK", 
+                                    "6" = "NK")
+
+
+seurat.list$Healthy@meta.data$named_clusters <- Idents(seurat.list$Healthy)
+
+# save seurat list with metadata
+saveRDS(seurat.list, "Exported_RDS_files/Human_dataset_seurat_list_imputed.rds")
+
+```
+
+
 
 ## Differential gene expression {.tabset}
 
@@ -684,8 +731,9 @@ if(long.compute){
 if(long.compute){
   for(i in seq_along(seurat.list)){
     DefaultAssay(seurat.list[[i]]) <- "SCT"
+    Idents(seurat.list[[i]]) <- "seurat_clusters"
   }
-
+  
   #BiocManager::install('limma')
   library("limma")
   
@@ -708,287 +756,47 @@ if(long.compute){
   # Save dataset with dim reduction
   saveRDS(cluster.4.markers, "Exported_RDS_files/DEG_markers_cluster_4.rds")
   
+  
+  # Cluster 4 vs 6
+  cluster.4.vs.6.markers <- FindMarkers(seurat.list$Healthy, 
+                                   ident.1 = 4, 
+                                   ident.2 = 6)
+  
+  # 
+  saveRDS(cluster.4.vs.6.markers, "Exported_RDS_files/DEG_markers_cluster_4_vs_6.rds")
+  
+  
+  # Named clusters DEGs
+  Idents(seurat.list$Healthy) <- "named_clusters"
+  
+  markers.named.clusters <- Seurat::FindAllMarkers(seurat.list$Healthy,
+                                            only.pos = FALSE)
+  
+  # Save dataset with dim reduction
+  saveRDS(markers.named.clusters, "Exported_RDS_files/DEG_markers_named_clusters.rds")
+  
 }
 
 ```
  
  
 
-### DEG visualisation 
-```{r DEG_vis}
-
-
-  for(i in seq_along(seurat.list)){
-    DefaultAssay(seurat.list[[i]]) <- "alra"
-    
-    Idents(seurat.list[[i]]) <- "seurat_clusters"
-  }
-
-
-
-
-top.genes <- markers.vec$Healthy %>%
-  dplyr::filter(p_val_adj < 0.05) %>%
-  group_by(cluster) %>%
-  top_n(30, avg_log2FC) %>%
-  pull(gene)
-
-top.genes <- markers.vec$Healthy %>%
-  dplyr::filter(p_val_adj < 0.05) %>%
-  dplyr::filter(cluster == 4) %>%
-  top_n(50, avg_log2FC) %>%
-  pull(gene)
-
-
-small.object <- subset(seurat.list$Healthy, downsample = 300)
-
-small.object <- ScaleData(small.object)
-
-
-
-DoHeatmap(small.object,
-          assay = "alra",
-          features = top.genes, 
-          draw.lines = FALSE)
-
-
-up.genes <- cluster.4.markers %>%
-  dplyr::filter(p_val_adj < 0.05)  %>%
-  top_n(20, avg_log2FC)
-
-dn.genes <- cluster.4.markers %>%
-  dplyr::filter(p_val_adj < 0.05)  %>%
-  top_n(-20, avg_log2FC)
-
-
-
-top.genes <- c(rownames(up.genes), rownames(dn.genes), "NCAM1")
-
-
-
-
-
-DoHeatmap(small.object,
-          assay = "alra",
-          features = top.genes, 
-          draw.lines = FALSE)
-
-
-##
-
-
-#
-
-
-
-
-
-
-
-
-DoHeatmap(small.object,
-          assay = "alra",
-          features = top.genes, 
-          draw.lines = FALSE)
-
-
-
-
-
-
-Nebulosa::plot_density(seurat.list$Healthy, 
-                       "EOMES")
-
-
-
-
-
-
-
-
-
-FeaturePlot(seurat.list$Healthy, 
-            c("NCAM1", "FCGR3A"), 
-            pt.size = 0.5,
-            cols = c("gray", "red", "blue"),
-            order = TRUE,
-            blend = TRUE)
-
-
-
-UMAPPlot(seurat.list$Healthy, label = T)
-
-
-
-
-FeaturePlot(seurat.list$Healthy, 
-            "BATF3", 
-            pt.size = 0.4,
-            order = TRUE)
-
-
-
-
-
-
-
-
-
-for(i in seq_along())
-
-FeaturePlot(seurat.list$Healthy, 
-            "IL7R", 
-            pt.size = 0.5,
-            order = TRUE)
-
-
-
-FeaturePlot
-
-
-
-
-
-
-
-
-Idents(seurat.list$Healthy) <- "seurat_clusters"
-
-small.object <- subset(seurat.list$Healthy, downsample = 300)
-
-
-
-small.object <- ScaleData(small.object)
-
-
-goi <- c("LTB", "IL7R", "KIT", "BATF3", "DLL1", "ID3", "INPP4B", "DPP4", "IL2RA", "ITGA1", "EOMES", "SELL", "KLRG1", "TNFSF10", "NKG7", "TNF", "GZMA", "GZMB", "PRF1", "CD7", "CD9")
-
-
-DoHeatmap(small.object,
-          assay = "alra",
-          features = goi, 
-          draw.lines = FALSE)
-
-
-
-
-
-
-
-
-
-DefaultAssay(human.seurat.filt) <- "alra"
-
-
-output.dir <- "output/figures/Key_marker_genes"
-
-
-  if(!dir.exists(paste0(output.dir))){
-    dir.create(paste0(output.dir), 
-               recursive = TRUE)}
-
-
-
-for(i in seq_along(goi)){
-  if(goi[i] %in% rownames(human.seurat.filt@assays$alra@data)){
-    
-    print(FeaturePlot(human.seurat.filt, 
-                      feature = goi[i]))
-    
-    dev.copy(pdf, paste0(output.dir, "/FeaturePlot_", goi[i], "_imputed.pdf"))
-    dev.off()
-    
-    print(VlnPlot(human.seurat.filt, 
-                  feature = goi[i],
-                  assay = "alra",
-                  pt.size = 0.1))
-    
-    dev.copy(pdf, paste0(output.dir, "/VlnPlot_", goi[i], "_imputed.pdf"))
-    dev.off()
-  }
+### Module score calculation
+```{r Module_score_calculation}
+
+# Create output directories
+if(!dir.exists("output/figures/CD160_sig_module_score")){
+  dir.create("output/figures/CD160_sig_module_score", 
+             recursive = T)
 }
 
 
 
-
-
-
-
-
-
-
-VlnPlot(human.seurat.filt, 
-                  feature = "Up_sig1",
-                  pt.size = 0.1)
-
-
-
-
-
-average.object <- AverageExpression(human.seurat.filt, return.seurat = TRUE)
-
-
-DefaultAssay(average.object) <- "alra"
-
-average.object <- ScaleData(average.object)
-
-
-DoHeatmap(average.object,
-          assay = "alra",
-          features = goi, 
-          draw.lines = FALSE)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-goi <- c("CD7", "SELL", "CD160", "ITGAM", "CXCR6", "ITGA1", "ITGA2", "CD226", "EOMES", "IL7R", LTB)
-goi <- Up.genes
-
-
-
-FeaturePlot(human.seurat.filt, 
-            feature = "LTB")
-
-
-human.seurat.filt@meta.data$Up_sig1
-
-
-rownames(human.seurat.filt@assays$RNA@data)[grepl("CD2", rownames(human.seurat.filt@assays$RNA@data))]
-
-
-goi <- c("LTB", "KIT", "CD160", "IL7R", "NKG7", "GZMA", "IFNG", "IFNGR1", "IFNGR2", "EOMES")
-
-sort(rowSums(human.seurat.filt@assays$RNA@data), decreasing = T)[20:30]
-
-
-rownames(human.seurat.filt@assays$RNA@data)
-
-
-FeaturePlot(human.seurat.filt,
-              "ZNF683", 
-              pt.size = 0.5,
-              order = TRUE)
-
-
-
-Up.genes
-
-VlnPlot(human.seurat.filt,
-              "Dn_sig1", pt.size = 0.1)
-
-
-
-
+for(i in seq_along(seurat.list)){
+  DefaultAssay(seurat.list[[i]]) <- "SCT"
+  
+  Idents(seurat.list[[i]]) <- "named_clusters"
+}
 
 
 # Read in CD160 signature
@@ -1001,9 +809,7 @@ Up.genes <-
   dplyr::arrange(desc(logFC)) %>%
   dplyr::pull(genes)
 
-Up.genes <- toupper(Up.genes)
-
-
+Up.genes <- convertMouseGeneList(Up.genes)
 
 Dn.genes <- 
   CD160.sig %>%
@@ -1012,125 +818,440 @@ Dn.genes <-
   dplyr::arrange(logFC) %>%
   dplyr::pull(genes)
 
-Dn.genes <- toupper(Dn.genes)
+Dn.genes <- convertMouseGeneList(Dn.genes)
+
+
+# Add module score
+seurat.list <- lapply(seurat.list, 
+                      FUN = Seurat::AddModuleScore,
+                      features = list(Up.genes), 
+                      name = "Up_sig",
+                      ctrl = 80,
+                      seed = 42)
+
+
+seurat.list <- lapply(seurat.list, 
+                      FUN = Seurat::AddModuleScore,
+                      features = list(Dn.genes), 
+                      name = "Dn_sig",
+                      ctrl = 80,
+                      seed = 42)
 
 
 
+# visualise module score 
+VlnPlot(seurat.list$Healthy, 
+        "Up_sig1",
+        pt.size = 0)
 
-##########################
-# Do signature scoring
-##########################
+dev.copy(pdf, "output/figures/CD160_sig_module_score/VlnPlot_Upregulated_signature.pdf")
+dev.off()
 
-# Set default assay to RNA
-DefaultAssay(human.seurat.filt) <- "RNA"
+VlnPlot(seurat.list$Healthy,
+        "Dn_sig1",
+        pt.size = 0)
 
-
-human.seurat.filt <- AddModuleScore(human.seurat.filt, 
-                                    features = list(Up.genes), 
-                                    name = "Up_sig",
-                                    ctrl = 80,
-                                    seed = 42)
-
-human.seurat.filt <- AddModuleScore(human.seurat.filt, 
-                                    features = list(Dn.genes), 
-                                    name = "Dn_sig",
-                                    ctrl = 80,
-                                    seed = 42)
+dev.copy(pdf, "output/figures/CD160_sig_module_score/VlnPlot_Downregulated_signature.pdf")
+dev.off()
 
 
-#########################################
-# Visualise signature and sig genes
-#########################################
+# Heatmaps
+DefaultAssay(seurat.list$Healthy) <- "alra"
 
-DefaultAssay(mouse.seurat.filt) <- "alra"
+Idents(seurat.list$Healthy) <- "named_clusters"
+
+small.object <- subset(seurat.list$Healthy, downsample = 300)
+
+small.object <- ScaleData(small.object)
+
+DoHeatmap(small.object,
+          assay = "alra",
+          features = Up.genes, 
+          draw.lines = FALSE)
+
+dev.copy(pdf, "output/figures/CD160_sig_module_score/Heatmap_Upregulated_signature.pdf")
+dev.off()
+
+DoHeatmap(small.object,
+          assay = "alra",
+          features = Dn.genes, 
+          draw.lines = FALSE)
+
+dev.copy(pdf, "output/figures/CD160_sig_module_score/Heatmap_Downregulated_signature.pdf")
+dev.off()
 
 
+```
+ 
+ 
+### DEG Heatmaps
+```{r Heatmaps}
 
-for(i in seq_along(Up.genes)){
+for(i in seq_along(seurat.list)){
+  DefaultAssay(seurat.list[[i]]) <- "alra"
   
-  
-  if(Up.genes[i] %in% rownames(mouse.seurat.filt@assays$alra@data)){
-  print(VlnPlot(mouse.seurat.filt,
-        assay = "alra",
-        features = paste0(Up.genes[i]),
-        pt.size = 0.1,
-        group.by = "seurat_clusters"))
-
-  
-  dev.copy(pdf, paste0(output.dir, "/VlnPlots/VlnPlot_", Up.genes[i], "_imputed.pdf"))
-  dev.off()
-  
-  
-  
-  print(Nebulosa::plot_density(mouse.seurat.filt,
-                         paste0(Up.genes[i])))
-  
-dev.copy(pdf, paste0(output.dir, "/Density_UMAP/Nebulosa_", Up.genes[i], "_imputed.pdf"))
-  dev.off()
-  
-  
-  print(FeaturePlot(mouse.seurat.filt,
-              paste0(Up.genes[i]), 
-              pt.size = 0.5,
-              order = TRUE))
-  
-dev.copy(pdf, paste0(output.dir, "/UMAP/FeaturePlot_", Up.genes[i], "_imputed.pdf"))
-  dev.off()
-  
-  
-  }
-  
+  Idents(seurat.list[[i]]) <- "named_clusters"
 }
 
 
 
+# Create output directories
+if(!dir.exists("output/figures/Heatmaps_healthy")){
+  dir.create("output/figures/Heatmaps_healthy", 
+             recursive = T)
+}
 
-VlnPlot(mouse.seurat.filt, 
-        "Up_sig1", 
-        group.by = "seurat_clusters",
-        pt.size = 0.1)
 
-dev.copy(pdf, paste0(output.dir, "/Cd160_signature_upregulated_genes_imputed.pdf"))
+
+# Prepare dataset for heatmap visualisation
+DefaultAssay(seurat.list$Healthy) <- "alra"
+
+Idents(seurat.list$Healthy) <- "named_clusters"
+
+small.object <- subset(seurat.list$Healthy, downsample = 300)
+
+small.object <- ScaleData(small.object)
+
+
+markers.named.clusters <- readRDS("Exported_RDS_files/DEG_markers_named_clusters.rds")
+
+
+NK.genes <- 
+  markers.named.clusters %>%
+  dplyr::filter(p_val_adj < 0.05) %>%
+  dplyr::filter(cluster == "NK") %>%
+  dplyr::top_n(20, avg_log2FC) %>%
+  dplyr::arrange(desc(avg_log2FC)) %>%
+  dplyr::pull(gene)
+
+ILC.genes <- 
+  markers.named.clusters %>%
+  dplyr::filter(p_val_adj < 0.05) %>%
+  dplyr::filter(cluster == "ILC1-like") %>%
+  dplyr::top_n(20, avg_log2FC) %>%
+  dplyr::arrange(desc(avg_log2FC)) %>%
+  dplyr::pull(gene)
+
+goi <- c(ILC.genes, NK.genes)
+
+
+DoHeatmap(small.object,
+          assay = "alra",
+          features = goi, 
+          raster = FALSE,
+          draw.lines = FALSE)
+
+dev.copy(pdf, "output/figures/Heatmaps_healthy/Top_20_DEGs.pdf")
 dev.off()
 
 
-VlnPlot(mouse.seurat.filt,
-        "Dn_sig1",
-        group.by = "seurat_clusters", 
-        pt.size = 0.1)
+# Custom heatmap
 
-dev.copy(pdf, paste0(output.dir, "/Cd160_signature_downregulated_genes_imputed.pdf"))
+goi <- c("IL7R", "LTB", "XCL1", "ID3", "KIT", "CSF2", "CCR7", "INPP4B", "GPR183", "DLL1", "IL23R", "KLRD1", "NCR1", 
+         "EOMES", "TBX21", "GZMA", "GZMB", "NKG7", "PRF1", "GNLY", "CD160", "KLRG1", "CX3CR1", "ZEB2")
+
+
+DoHeatmap(small.object,
+          assay = "alra",
+          features = goi, 
+          raster = FALSE,
+          draw.lines = FALSE)
+
+dev.copy(pdf, "output/figures/Heatmaps_healthy/Custom_heatmap.pdf")
+dev.off()
+
+
+# KIR and KLR genes
+
+goi <- c("KIR3DL3", "KIR2DL3", "KIR2DL1", "KIR2DL4", "KIR3DL1", "KIR3DL2",
+         "KLRG1",  "KLRB1",  "KLRF1",  "KLRD1",  "KLRK1",  "KLRC4",  "KLRC3",  "KLRC2",  "KLRC1", "CD2")
+
+
+DoHeatmap(small.object,
+          assay = "alra",
+          features = goi, 
+          raster = FALSE,
+          draw.lines = FALSE)
+
+dev.copy(pdf, "output/figures/Heatmaps_healthy/KIR_KLR_heatmap.pdf")
+dev.off()
+
+
+# Transcription_factors
+goi <- c("GATA3", "TCF7", "AHR", "SOX4", "RUNX2", "ZEB1", "MYC", "AFF3", "SSBP2", "TCF4", "HOXA5",
+         "IKZF3",  "TBX21",  "NFIL3",  "ZEB2",  "PRDM1",  "RORA", "LEF1")
+
+
+DoHeatmap(small.object,
+          assay = "alra",
+          features = goi, 
+          raster = FALSE,
+          draw.lines = FALSE)
+
+dev.copy(pdf, "output/figures/Heatmaps_healthy/TF_heatmap.pdf")
+dev.off()
+
+```
+ 
+ 
+### VlnPlots
+```{r Vlnplots}
+
+for(i in seq_along(seurat.list)){
+  DefaultAssay(seurat.list[[i]]) <- "alra"
+  
+  Idents(seurat.list[[i]]) <- "named_clusters"
+}
+
+
+# Create output directories
+if(!dir.exists("output/figures/VlnPlots")){
+  dir.create("output/figures/VlnPlots", 
+             recursive = T)
+}
+
+
+
+goi <- c("NCAM1", "FCGR3A", "IL7R", "LTB", "KLRB1")
+
+for(i in seq_along(goi)){
+  print(
+    VlnPlot(seurat.list$Healthy,
+            feature = goi[i], 
+            group.by = "named_clusters",
+            pt.size = 0)
+  )
+  dev.copy(pdf, paste0("output/figures/VlnPlots/Imputed_", goi[i], "_healthy_dataset.pdf"))
+  dev.off()
+}
+
+```
+ 
+### UMAP cluster plot
+```{r UMAP_clusters}
+
+ # Create output directories
+if(!dir.exists("output/figures/UMAP_Healthy")){
+  dir.create("output/figures/UMAP_Healthy", 
+             recursive = T)
+}
+
+
+UMAPPlot(seurat.list$Healthy, 
+         group.by = "named_clusters", 
+         cols = c("Gray", "Orange"))
+
+dev.copy(pdf, "output/figures/UMAP_Healthy/UMAP_named_clusters.pdf")
 dev.off()
 
 
 
+barplot(prop.table(table(seurat.list$Healthy@meta.data$named_clusters))*100)
+
+```
+ 
+ 
+## GSEA analysis {.tabset}
+
+### Scillus
+
+```{r Scillus_GSEA}
+
+# Create output directories
+if(!dir.exists("output/figures/GO_analysis")){
+  dir.create("output/figures/GO_analysis", 
+             recursive = T)
+}
+
+for(i in seq_along(seurat.list)){
+  DefaultAssay(seurat.list[[i]]) <- "alra"
+  
+  Idents(seurat.list[[i]]) <- "seurat_clusters"
+}
+
+# Using the Scillus package
+
+
+# Filter DEGs by sig and foldchange
+GO.markers <- markers.vec$Healthy %>%
+  dplyr::filter(p_val_adj < 0.05 & avg_log2FC > 0.25)
 
 
 
-ILC1.signature <- c("Cd160", "Xcl1", "Crtam", "Batf3", "Id3", "Ltb", "Tnfsf10")
-NK.signature <- c("Itgam", "Eomes", "Gzmb")
+
+# number of genes DEG per cluster 
+table(GO.markers$cluster) # Used o justify using topn value = 100
+
+####################
+# Analysis variables 
+####################
+organism <- "human"
+n.val <- 100
+
+# Plot Gene Ontology analysis
+
+# CC 
+pdf("output/figures/GO_analysis/GO_CC.pdf", width = 20, height = 20)
+
+plot_all_cluster_go(GO.markers,
+                    topn = n.val,
+                    org = organism, 
+                    ont = "CC")
+
+dev.off()
 
 
+# BP 
+pdf("output/figures/GO_analysis/GO_BP.pdf", width = 20, height = 20)
 
+plot_all_cluster_go(GO.markers,
+                    topn = n.val,
+                    org = organism, 
+                    ont = "BP")
 
+dev.off()
 
+# MF 
+pdf("output/figures/GO_analysis/GO_MF.pdf", width = 20, height = 20)
 
-
-
-
-# Scatter plot across individual features, repleaces CellPlot
-
-DimHeatmap(object = seurat.list$Healthy, reduction = "pca", cells = 100)
-
-
-plot <- DimPlot(object = seurat.list$Healthy) + NoLegend()
-
-# HoverLocator replaces the former `do.hover` argument It can also show extra data throught the `information` argument,
-# designed to work smoothly with FetchData
-HoverLocator(plot = plot, information = FetchData(object = seurat.list$Healthy, vars = c("ident", "PC_1", "nFeature_RNA")))
-
-# FeatureLocator replaces the former `do.identify`
-select.cells <- CellSelector(plot = plot)
+plot_all_cluster_go(GO.markers,
+                    topn = n.val,
+                    org = organism, 
+                    ont = "MF")
+dev.off()
 
 
 ```
+
+
+### GSEA
+```{r GSEA}
+
+
+test_GSEA.v2 <- function (diff, clusters = NULL, pathway) 
+{ #browser()
+    if (!requireNamespace("fgsea", quietly = TRUE)) {
+        stop(paste("Package \"fgsea\" needed for this function to work. Please install it."), 
+            call. = FALSE)
+    }
+    if (is.null(clusters)) 
+        clusters <- unique(diff$cluster)
+    gsea_res <- list()
+    for (i in seq(length(clusters))) {
+        data <- diff %>% filter(.data$cluster == clusters[i]) %>% 
+            arrange(desc(.data$avg_log2FC))
+        l <- data$avg_log2FC
+        names(l) <- data$feature
+        res <- fgsea::fgsea(pathways = pathway, stats = l, minSize = 15, 
+            maxSize = 500)
+        res <- res %>% add_column(cluster = clusters[i], .before = 1)
+        gsea_res[[i]] <- res
+    }
+    return(as_tibble(do.call("rbind", gsea_res)))
+}
+
+
+if(long.compute){
+  for(i in seq_along(seurat.list)){
+    DefaultAssay(seurat.list[[i]]) <- "SCT"
+  }
+
+  #BiocManager::install('limma')
+  library("limma")
+  
+  Idents(seurat.list$Healthy) <- "named_clusters"
+  
+  markers.vec.all <- Seurat::FindAllMarkers(seurat.list$Healthy, 
+                                            logfc.threshold = 0,
+                                            min.cells.group = 1,
+                                            only.pos = TRUE)
+  
+  # Save dataset with dim reduction
+  saveRDS(markers.vec.all, "Exported_RDS_files/DEG_markers_no_thresholds.rds")
+}
+
+
+markers.vec.all$features <- markers.vec.all$gene
+
+
+
+gsea_res <- test_GSEA.v2(markers.vec.all,
+                         pathway = pathways.hallmark)
+
+
+plot_GSEA(gsea_res,
+          p_cutoff = 0.1, 
+          colors = c("#0570b0", "grey", "#d7301f"))
+
+
+```
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ ### Cell cycle analysis
+```{r cell_cycle}
+
+if(!dir.exists("output/figures/cell_cycle")){
+  dir.create("output/figures/cell_cycle")
+}
+
+
+
+for(i in seq_along(seurat.list)){
+  DefaultAssay(seurat.list[[i]]) <- "SCT"
+  
+  Idents(seurat.list[[i]]) <- "seurat_clusters"
+}
+
+
+
+# A list of cell cycle markers, from Tirosh et al, 2015, is loaded with Seurat.  
+# We can segregate this list into markers of G2/M phase and markers of S phase
+s.genes <- cc.genes.updated.2019$s.genes
+g2m.genes <- cc.genes.updated.2019$g2m.genes
+
+
+length(s.genes) # 43
+length(g2m.genes) # 54
+
+#######################
+# Cell cycle analysis
+#######################
+
+seurat.list$Healthy <- CellCycleScoring(seurat.list$Healthy, 
+                                       s.features = s.genes, 
+                                       g2m.features = g2m.genes, 
+                                       set.ident = TRUE)
+
+
+#######################
+# Visualisation
+#######################
+
+
+# Vln plots
+
+VlnPlot(seurat.list$Healthy,
+        features = "S.Score",
+        group.by = "named_clusters",
+        pt.size = 0)
+
+dev.copy(pdf, "output/figures/cell_cycle/Cellcycle_VlnPlot_Sscore.pdf")
+dev.off()
+
+VlnPlot(seurat.list$Healthy,
+        features = "G2M.Score",
+        group.by = "named_clusters",
+        pt.size = 0)
+
+dev.copy(pdf, "output/figures/cell_cycle/Cellcycle_VlnPlot_G2Mscore.pdf")
+dev.off()
+
+```
+

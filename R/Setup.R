@@ -12,6 +12,8 @@ working.dir <- getwd()
 # For reproducibility
 set.seed(42)
 
+# Load custom functions
+source("R/Functions/My_Functions.R", local = knitr::knit_global())
 
 ###############################
 # create output directories

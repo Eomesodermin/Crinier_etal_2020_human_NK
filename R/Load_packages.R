@@ -22,7 +22,7 @@ for(i in 1:length(pkgs)){
   }
 }
 
-pkgs <- c("SingleCellExperiment",  "DT", "readr","tibble", "glmGamPoi")
+pkgs <- c("SingleCellExperiment",  "DT", "readr","tibble", "glmGamPoi", "biomaRt", "clusterProfiler", "org.Hs.eg.db")
 
 
 for(i in 1:length(pkgs)){
@@ -33,6 +33,10 @@ for(i in 1:length(pkgs)){
     require(pkgs[i], character.only = T)
   }
 }
+
+
+
+
 
 
 
@@ -52,6 +56,14 @@ for(i in 1:length(pkgs)){
 #devtools::install_github("powellgenomicslab/Nebulosa")
 library("Nebulosa")
 
+
+
+#devtools::install_github("xmc811/Scillus", ref = "development")
+library("Scillus")
+
+
+
+
 ######################
 # Seurat
 ######################
@@ -59,6 +71,10 @@ library("Nebulosa")
 #devtools::install_github('satijalab/seurat-data')
 #devtools::install_github('satijalab/seurat-wrappers')
 library("SeuratWrappers")
+
+
+
+
 
 
 #####################

@@ -1,1 +1,25 @@
-# Crinier_etal_2020_HumanNK
+# Crinier et al. 2020 — human bone-marrow NK cells (re-analysis)
+
+Re-analysis of the publicly available single-cell dataset from:
+
+> **Crinier A, Dumas P-Y, Escalière B, et al. Single-cell profiling reveals the trajectories of natural killer cell differentiation in bone marrow and a stress signature induced by acute myeloid leukemia.**  
+> *Cellular & Molecular Immunology* 2020. https://doi.org/10.1038/s41423-020-00574-8  
+> Data: See original publication
+
+## Dataset at a glance
+- **System:** Human bone-marrow and blood NK cells (NK differentiation trajectory)
+- **Assay:** 10x Genomics scRNA-seq
+- **Accession / source:** See original publication
+
+## What this repository does
+Preprocesses the Crinier et al. human bone-marrow NK-cell scRNA-seq dataset into a Seurat object for NK differentiation analysis. See `R/01_Crinier_2020_Human_BM_NK_dataset_Preprocessing.Rmd`.
+
+## Repository structure
+- `R/` — analysis pipeline (numbered `.Rmd` scripts run in order)
+- `Setup.R` / `Load_packages.R` — environment setup and package loading
+- Large data objects are **not** tracked in Git — download from the source above.
+- `renv.lock` — pinned package versions for reproducibility (`renv::restore()`).
+
+---
+Part of my NK / T-cell single-cell research programme — see my [GitHub profile](https://github.com/Eomesodermin) and [dilloncorvino.com](https://dilloncorvino.com).  
+Author: **Dillon Corvino**
